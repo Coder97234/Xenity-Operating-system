@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useSystem } from '../os/SystemContext'
 import { formatBytes } from '../os/fs'
 import { CHANGELOG, CODENAME, VERSION } from '../os/updater'
+import { buildIso, downloadIso } from '../os/iso'
 import { Icon, XenityMark } from '../components/Icons'
 
 const SECTIONS = [
@@ -38,6 +39,8 @@ export default function Settings() {
     return { system, cache, user, total: system + cache + user, storage }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sys.fsVersion])
+
+  const iso = useMemo(() => buildIso(), [])
 
   const updateLog = useMemo(() => {
     try {
@@ -269,6 +272,23 @@ export default function Settings() {
               <div><span>Model</span><strong>Xenity Web Machine</strong></div>
               <div><span>Footprint</span><strong>{formatBytes(stats.system)}</strong></div>
               <div><span>Built</span><strong>14 Nov 2026</strong></div>
+            </div>
+            <div className="about-download">
+              <div>
+                <strong>Xenity disc image</strong>
+                <p>
+                  ISO 9660 · {formatBytes(iso.length)} · launcher page and release notes, mountable anywhere
+                </p>
+              </div>
+              <button
+                className="primary"
+                onClick={() => {
+                  const file = downloadIso(iso)
+                  sys.notify('Xenity ISO downloaded', `${file.name} · ${formatBytes(file.size)}`)
+                }}
+              >
+                Download ISO
+              </button>
             </div>
             <p className="fine-print">
               Xenity is a real, working operating-system interface: a window manager, a file system, a

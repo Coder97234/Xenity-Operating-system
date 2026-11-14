@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSystem } from '../os/SystemContext'
 import { APPS } from '../os/apps'
+import { downloadIso } from '../os/iso'
 import { Icon, XenityMark } from './Icons'
 
 function Menu({ label, items, open, onToggle, bold }) {
@@ -71,6 +72,13 @@ export default function MenuBar() {
       { label: 'About This Xenity', onSelect: () => sys.openApp('settings') },
       { label: 'System Settings…', onSelect: () => sys.openApp('settings') },
       { label: 'Xenity Store…', onSelect: () => sys.openApp('store') },
+      {
+        label: 'Download ISO…',
+        onSelect: () => {
+          const file = downloadIso()
+          sys.notify('Xenity ISO downloaded', `${file.name} · ${Math.round(file.size / 1024)} KB`)
+        },
+      },
       { separator: true },
       { label: 'Restart…', onSelect: () => sys.restart() },
       { label: 'Shut Down…', onSelect: () => sys.powerOff() },

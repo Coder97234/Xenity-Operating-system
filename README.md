@@ -3,7 +3,10 @@
 A working, light operating-system interface that runs in the browser. Not a mockup:
 the window server, shell, file system, package store and settings are all real.
 
-**Open the preview** and Xenity boots to the desktop.
+**Open the preview** and Xenity boots to the desktop. To take a copy away,
+use **Settings → About → Download ISO** (or the Xenity menu → Download ISO…):
+Xenity writes a real, mountable ISO 9660 disc image in the browser — about 46 KB,
+holding the launcher page and the release notes.
 
 ## What's inside
 
