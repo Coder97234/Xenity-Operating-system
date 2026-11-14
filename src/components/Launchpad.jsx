@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { useSystem } from '../os/SystemContext'
-import { APP_LIST } from '../os/apps'
 import { AppGlyph, Icon } from './Icons'
 
 export default function Launchpad() {
@@ -8,12 +7,14 @@ export default function Launchpad() {
   const [query, setQuery] = useState('')
 
   const apps = useMemo(() => {
-    const installed = APP_LIST.filter(
-      (app) => !app.hidden && (app.preinstalled || sys.packages.includes(app.id))
+    const installed = sys.appList.filter(
+      (app) => !app.hidden && (app.preinstalled || app.isFlatpak || sys.packages.includes(app.id))
     )
     const q = query.trim().toLowerCase()
-    return q ? installed.filter((app) => app.name.toLowerCase().includes(q)) : installed
-  }, [sys.packages, query])
+    return q
+      ? installed.filter((app) => app.name.toLowerCase().includes(q) || (app.tag || '').toLowerCase().includes(q))
+      : installed
+  }, [sys.appList, sys.packages, query])
 
   return (
     <div className="launchpad" role="dialog" aria-label="Launchpad">
@@ -37,7 +38,7 @@ export default function Launchpad() {
               sys.setLaunchpadOpen(false)
             }}
           >
-            <AppGlyph appId={app.icon} size={74} />
+            <AppGlyph appId={app.icon} size={74} color={app.color} letter={app.letter} />
             <span>{app.name}</span>
           </button>
         ))}

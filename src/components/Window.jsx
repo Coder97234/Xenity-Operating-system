@@ -1,7 +1,6 @@
 import { useRef } from 'react'
 import { useSystem } from '../os/SystemContext'
-import { APPS } from '../os/apps'
-import { APP_COMPONENTS } from '../os/registry'
+import { componentFor } from '../os/registry'
 import { baseName } from '../os/fs'
 
 const MIN_W = 280
@@ -9,8 +8,8 @@ const MIN_H = 200
 
 export default function Window({ win }) {
   const sys = useSystem()
-  const meta = APPS[win.appId]
-  const Component = APP_COMPONENTS[win.appId]
+  const meta = sys.appMeta(win.appId)
+  const Component = componentFor(win.appId)
   const active = sys.activeWindow?.id === win.id
   const dragRef = useRef(null)
 

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSystem } from '../os/SystemContext'
-import { APPS } from '../os/apps'
-import { downloadIso } from '../os/iso'
 import { Icon, XenityMark } from './Icons'
+import WifiPanel from './WifiPanel'
+import { downloadIso } from '../os/iso'
+import { formatBytes } from '../os/fs'
 
 function Menu({ label, items, open, onToggle, bold }) {
   return (
@@ -40,6 +41,7 @@ function Menu({ label, items, open, onToggle, bold }) {
 export default function MenuBar() {
   const sys = useSystem()
   const [open, setOpen] = useState(null)
+  const [wifiOpen, setWifiOpen] = useState(false)
   const [now, setNow] = useState(new Date())
   const barRef = useRef(null)
 
@@ -50,14 +52,17 @@ export default function MenuBar() {
 
   useEffect(() => {
     const onDown = (e) => {
-      if (barRef.current && !barRef.current.contains(e.target)) setOpen(null)
+      if (barRef.current && !barRef.current.contains(e.target)) {
+        setOpen(null)
+        setWifiOpen(false)
+      }
     }
     document.addEventListener('pointerdown', onDown)
     return () => document.removeEventListener('pointerdown', onDown)
   }, [])
 
   const active = sys.activeWindow
-  const activeName = active ? APPS[active.appId]?.name : 'Finder'
+  const activeName = active ? sys.appMeta(active.appId)?.name : 'Finder'
 
   const clock = now.toLocaleString(undefined, {
     weekday: 'short',
@@ -65,20 +70,28 @@ export default function MenuBar() {
     month: 'short',
     hour: 'numeric',
     minute: '2-digit',
+    hour12: !sys.settings.clock24,
   })
 
   const menus = {
     xenity: [
-      { label: 'About This Xenity', onSelect: () => sys.openApp('settings') },
+      { label: 'About This Xenity', onSelect: () => sys.openApp('settings', { section: 'about' }) },
       { label: 'System Settings…', onSelect: () => sys.openApp('settings') },
-      { label: 'Xenity Store…', onSelect: () => sys.openApp('store') },
+      {
+        label: 'Xenity Store…',
+        onSelect: () => sys.openApp('store'),
+      },
+      { label: 'Passwords…', onSelect: () => sys.openApp('passwords') },
       {
         label: 'Download ISO…',
         onSelect: () => {
           const file = downloadIso()
-          sys.notify('Xenity ISO downloaded', `${file.name} · ${Math.round(file.size / 1024)} KB`)
+          sys.notify('Xenity ISO downloaded', `${file.name} · ${formatBytes(file.size)}`)
         },
       },
+      { separator: true },
+      { label: 'Lock Screen', hint: '⌃⌘Q', disabled: !sys.account, onSelect: () => sys.lock() },
+      { label: 'Start Screen Saver', onSelect: () => sys.startScreensaver() },
       { separator: true },
       { label: 'Restart…', onSelect: () => sys.restart() },
       { label: 'Shut Down…', onSelect: () => sys.powerOff() },
@@ -92,6 +105,7 @@ export default function MenuBar() {
     view: [
       { label: 'Show Launchpad', hint: '⌘Space', onSelect: () => sys.setLaunchpadOpen(true) },
       { label: 'Toggle Theme', onSelect: () => sys.updateSettings({ theme: sys.settings.theme === 'light' ? 'dark' : 'light' }) },
+      { label: 'Toggle Night Shift', onSelect: () => sys.updateSettings({ nightShift: !sys.settings.nightShift }) },
     ],
     window: [
       {
@@ -106,10 +120,12 @@ export default function MenuBar() {
       },
     ],
     help: [
-      { label: 'Xenity Help', onSelect: () => sys.openApp('browser') },
-      { label: 'About This Xenity', onSelect: () => sys.openApp('settings') },
+      { label: 'Xenity Help', onSelect: () => sys.openApp('browser', { url: 'xenity://docs' }) },
+      { label: 'About This Xenity', onSelect: () => sys.openApp('settings', { section: 'about' }) },
     ],
   }
+
+  const online = !!sys.network.ssid
 
   return (
     <header className="menubar" ref={barRef}>
@@ -130,9 +146,33 @@ export default function MenuBar() {
         <span className="mb-status" title="Battery 100%">
           <Icon name="battery" size={17} />
         </span>
-        <span className="mb-status" title="Wi-Fi connected">
-          <Icon name="wifi" size={16} />
-        </span>
+        <div className="mb-menu">
+          <button
+            className={`mb-status mb-network ${online ? 'on' : 'off'} ${wifiOpen ? 'open' : ''}`}
+            title={online ? `Wi-Fi: ${sys.network.ssid}` : 'Wi-Fi is off'}
+            aria-label="Wi-Fi"
+            onClick={() => {
+              setOpen(null)
+              setWifiOpen(!wifiOpen)
+            }}
+          >
+            <Icon name="wifi" size={16} />
+          </button>
+          {wifiOpen && (
+            <div className="mb-popover wifi-popover">
+              <WifiPanel compact />
+              <button
+                className="ghost"
+                onClick={() => {
+                  setWifiOpen(false)
+                  sys.openApp('settings', { section: 'network' })
+                }}
+              >
+                Network settings…
+              </button>
+            </div>
+          )}
+        </div>
         <span className="mb-status" title="Control Centre">
           <Icon name="sliders" size={16} />
         </span>

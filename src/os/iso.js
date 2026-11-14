@@ -2,8 +2,10 @@
 //
 // Builds a real, mountable ISO 9660 image in the browser — no backend and no
 // build step — carrying a launcher page and the release notes under the volume
-// label XENITY. The disc is a few kilobytes: Xenity itself boots from the web
-// build, so this is a demo/install disc, not a bootable kernel.
+// label XENITY. The disc is El Torito bootable: its 16-bit boot sector starts
+// on BIOS machines and in virtual machines and prints the Xenity boot banner.
+// Xenity itself then runs from the web build, so the disc carries a boot
+// loader, not a Linux kernel.
 
 import { CODENAME, VERSION } from './updater'
 
@@ -82,6 +84,84 @@ function dirRecord(name, extent, size, date, isDir = false) {
   return record
 }
 
+// 16-bit real-mode boot sector: clears the screen, prints the banner, halts.
+function bootSector() {
+  const code = [
+    0xfa, // cli
+    0x31, 0xc0, // xor ax, ax
+    0x8e, 0xd0, // mov ss, ax
+    0xbc, 0x00, 0x7c, // mov sp, 0x7c00
+    0x8e, 0xd8, // mov ds, ax
+    0xfb, // sti
+    0xb8, 0x03, 0x00, // mov ax, 0x0003 (80x25 text mode)
+    0xcd, 0x10, // int 0x10
+    0xbe, 0x21, 0x7c, // mov si, 0x7c21 (message)
+    0xac, // lodsb
+    0x84, 0xc0, // test al, al
+    0x74, 0x06, // jz halt
+    0xb4, 0x0e, // mov ah, 0x0e
+    0xcd, 0x10, // int 0x10
+    0xeb, 0xf5, // jmp print
+    0xf4, // hlt
+    0xeb, 0xfd, // jmp halt
+  ]
+  const message =
+    'Xenity 1.4.1 (Nova)\r\n' +
+    'xenity-core boot loader\r\n' +
+    '\r\n' +
+    'Booting from this disc works. The Xenity desktop itself runs\r\n' +
+    'from the web build - mount the disc and open XENITY.HTM.\r\n' +
+    '\r\n'
+  const image = new Uint8Array(512)
+  image.set(code, 0)
+  for (let i = 0; i < message.length; i += 1) image[code.length + i] = message.charCodeAt(i)
+  image[510] = 0x55
+  image[511] = 0xaa
+  return image
+}
+
+function bootCatalog(imageSector) {
+  const catalog = new Uint8Array(SECTOR)
+
+  // Validation entry (32 bytes).
+  catalog[0] = 0x01
+  catalog[1] = 0x00
+  catalog[30] = 0x55
+  catalog[31] = 0xaa
+  let sum = 0
+  for (let i = 0; i < 32; i += 2) {
+    const word = catalog[i] | (catalog[i + 1] << 8)
+    sum = (sum + word) & 0xffff
+  }
+  const checksum = (0x10000 - sum) & 0xffff
+  catalog[28] = checksum & 0xff
+  catalog[29] = (checksum >>> 8) & 0xff
+
+  // Initial/default entry: bootable, no emulation, 4 × 512-byte sectors.
+  catalog[32] = 0x88
+  catalog[33] = 0x00
+  catalog[34] = 0x00
+  catalog[35] = 0x00
+  catalog[36] = 0x00
+  catalog[38] = 0x04 // sector count, little-endian: 4 × 512 bytes
+  catalog[39] = 0x00
+  catalog[40] = imageSector & 0xff
+  catalog[41] = (imageSector >>> 8) & 0xff
+  catalog[42] = (imageSector >>> 16) & 0xff
+  catalog[43] = (imageSector >>> 24) & 0xff
+  return catalog
+}
+
+function bootRecordVolume(catalogSector) {
+  const descriptor = new Uint8Array(SECTOR)
+  descriptor[0] = 0
+  descriptor.set(enc.encode('CD001'), 1)
+  descriptor[6] = 1
+  for (let i = 0; i < 23; i += 1) descriptor[7 + i] = 'EL TORITO SPECIFICATION'.charCodeAt(i)
+  u32le(descriptor, 71, catalogSector)
+  return descriptor
+}
+
 function launcherPage() {
   const site = typeof window !== 'undefined' ? window.location.origin : 'https://xenity.os'
   return `<!doctype html>
@@ -135,8 +215,11 @@ CONTENTS
   README.TXT   this file
   XENITY.HTM   launcher page — open it in any browser
 
-This disc carries the Xenity launcher, not a bootable kernel. Boot Xenity
-from the web build, or mount this image and open XENITY.HTM.
+BOOTING
+Start this disc in a BIOS machine or a virtual machine (QEMU, VirtualBox,
+VMware). Its El Torito boot loader prints the Xenity boot banner, then the
+desktop itself runs from the web build — this disc carries the Xenity boot
+loader and launcher, not a Linux kernel.
 
 UPDATES
 On every boot Xenity removes only its own old artefacts:
@@ -148,13 +231,17 @@ settings, packages and notes are never read for deletion.
 /** Builds the ISO 9660 image. @returns {Uint8Array} */
 export function buildIso() {
   const now = new Date()
-  const rootDirSector = 20
-  const readmeSector = 21
+  const rootDirSector = 21
+  const readmeSector = 22
 
   const readme = enc.encode(releaseNotes(now))
   const launcher = enc.encode(launcherPage())
-  const launcherSector = readmeSector + Math.max(1, Math.ceil(readme.length / SECTOR))
-  const totalSectors = launcherSector + Math.max(1, Math.ceil(launcher.length / SECTOR))
+  const readmeSectors = Math.max(1, Math.ceil(readme.length / SECTOR))
+  const launcherSector = readmeSector + readmeSectors
+  const launcherSectors = Math.max(1, Math.ceil(launcher.length / SECTOR))
+  const catalogSector = launcherSector + launcherSectors
+  const bootImageSector = catalogSector + 1
+  const totalSectors = bootImageSector + 4
 
   // Root directory: itself, its parent, then the two files.
   const rootDir = new Uint8Array(SECTOR)
@@ -180,9 +267,9 @@ export function buildIso() {
   both16(primary, 124, 1)
   both16(primary, 128, SECTOR)
   both32(primary, 132, 10)
-  u32le(primary, 140, 18)
+  u32le(primary, 140, 19)
   u32le(primary, 144, 0)
-  u32be(primary, 148, 19)
+  u32be(primary, 148, 20)
   u32be(primary, 152, 0)
   primary.set(dirRecord(new Uint8Array([0]), rootDirSector, SECTOR, now, true), 156)
   text(primary, 190, 128, 'XENITY')
@@ -214,12 +301,15 @@ export function buildIso() {
 
   const image = new Uint8Array(totalSectors * SECTOR)
   image.set(primary, 16 * SECTOR)
-  image.set(terminator, 17 * SECTOR)
-  image.set(pathL, 18 * SECTOR)
-  image.set(pathM, 19 * SECTOR)
+  image.set(bootRecordVolume(catalogSector), 17 * SECTOR)
+  image.set(terminator, 18 * SECTOR)
+  image.set(pathL, 19 * SECTOR)
+  image.set(pathM, 20 * SECTOR)
   image.set(rootDir, rootDirSector * SECTOR)
   image.set(readme, readmeSector * SECTOR)
   image.set(launcher, launcherSector * SECTOR)
+  image.set(bootCatalog(bootImageSector), catalogSector * SECTOR)
+  image.set(bootSector(), bootImageSector * SECTOR)
   return image
 }
 

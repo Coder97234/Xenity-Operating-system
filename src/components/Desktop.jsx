@@ -29,6 +29,10 @@ export default function Desktop() {
         e.preventDefault()
         sys.openApp('terminal')
       }
+      if (meta && e.ctrlKey && e.code === 'KeyQ') {
+        e.preventDefault()
+        sys.lock()
+      }
       if (e.key === 'Escape' && sys.launchpadOpen) sys.setLaunchpadOpen(false)
     }
     window.addEventListener('keydown', onKey)
@@ -41,8 +45,15 @@ export default function Desktop() {
     else sys.openApp('editor', { path })
   }
 
+  const filters = []
+  if (sys.settings.brightness < 1) filters.push(`brightness(${Number(sys.settings.brightness).toFixed(2)})`)
+  if (sys.settings.nightShift) filters.push('sepia(0.18) saturate(1.08)')
+
   return (
-    <div className={`desktop wall-${sys.settings.wallpaper}`}>
+    <div
+      className={`desktop wall-${sys.settings.wallpaper}`}
+      style={filters.length ? { filter: filters.join(' ') } : undefined}
+    >
       <MenuBar />
 
       <div className="desktop-icons">

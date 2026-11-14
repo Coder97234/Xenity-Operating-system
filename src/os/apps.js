@@ -34,13 +34,21 @@ export const APPS = {
     preinstalled: true,
     description: 'Install and remove Xenity applications.',
   },
+  passwords: {
+    id: 'passwords',
+    name: 'Passwords',
+    icon: 'passwords',
+    defaultSize: { w: 780, h: 560 },
+    preinstalled: true,
+    description: 'Saved website and Wi-Fi passwords, locked behind your account password.',
+  },
   settings: {
     id: 'settings',
     name: 'Settings',
     icon: 'settings',
     defaultSize: { w: 880, h: 600 },
     preinstalled: true,
-    description: 'Appearance, storage, updates and account.',
+    description: 'Display, sound, Wi-Fi, account, storage and updates.',
   },
   notes: {
     id: 'notes',

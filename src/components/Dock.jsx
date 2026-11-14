@@ -1,11 +1,10 @@
 import { useSystem } from '../os/SystemContext'
-import { APP_LIST } from '../os/apps'
 import { AppGlyph } from './Icons'
 
 export default function Dock() {
   const sys = useSystem()
-  const apps = APP_LIST.filter(
-    (app) => !app.hidden && (app.preinstalled || sys.packages.includes(app.id))
+  const apps = sys.appList.filter(
+    (app) => !app.hidden && (app.preinstalled || app.isFlatpak || sys.packages.includes(app.id))
   )
 
   const handleClick = (app) => {
@@ -54,7 +53,7 @@ export default function Dock() {
             data-label={app.name}
             aria-label={app.name}
           >
-            <AppGlyph appId={app.icon} />
+            <AppGlyph appId={app.icon} color={app.color} letter={app.letter} />
             {open && <span className="dock-dot" />}
           </button>
         )

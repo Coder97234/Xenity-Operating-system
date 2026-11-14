@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { SystemProvider, useSystem } from './os/SystemContext'
 import Desktop from './components/Desktop'
+import Setup from './components/Setup'
+import Login from './components/Login'
+import Screensaver from './components/Screensaver'
 import { BootScreen, PowerScreen } from './components/Shell'
 
 function Root() {
@@ -8,7 +11,7 @@ function Root() {
   const announced = useRef(null)
 
   useEffect(() => {
-    if (sys.boot !== 'ready') return
+    if (sys.boot !== 'ready' || sys.auth !== 'unlocked') return
     const key = sys.bootedAt
     if (announced.current === key) return
     announced.current = key
@@ -20,11 +23,19 @@ function Root() {
       sys.notify('System housekeeping', `Cleaned ${Math.round(info.reclaimed / 1024)} KB of stale Xenity caches. Your files were left alone.`)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sys.boot, sys.bootedAt, sys.updateInfo])
+  }, [sys.boot, sys.auth, sys.bootedAt, sys.updateInfo])
 
   if (sys.boot === 'booting') return <BootScreen />
   if (sys.boot === 'off') return <PowerScreen />
-  return <Desktop />
+  if (sys.auth === 'setup') return <Setup />
+  if (sys.auth === 'locked') return <Login />
+
+  return (
+    <>
+      <Desktop />
+      {sys.saver && <Screensaver />}
+    </>
+  )
 }
 
 export default function App() {
